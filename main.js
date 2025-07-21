@@ -73,13 +73,14 @@ function initSettings() {
 }
 
 function applySizeSettings() {
-  const total = settings.mapHeight + settings.videoHeight;
   const mapContainer = document.getElementById("map-container");
   const videoList = document.getElementById("video-list");
+
   mapContainer.style.height = settings.mapHeight + "px";
   videoList.style.height = settings.videoHeight + "px";
 
-  document.getElementById("resizer").addEventListener("mousedown", function(e) {
+  // 上側（マップ）のリサイズバー
+  document.getElementById("resizer").addEventListener("mousedown", function (e) {
     e.preventDefault();
     const startY = e.clientY;
     const startMap = mapContainer.offsetHeight;
@@ -90,20 +91,57 @@ function applySizeSettings() {
       let newMap = startMap + (e.clientY - startY);
       let newVideo = totalHeight - newMap;
       if (newMap < 100 || newVideo < 100) return;
+
       mapContainer.style.height = newMap + "px";
       videoList.style.height = newVideo + "px";
       settings.mapHeight = newMap;
       settings.videoHeight = newVideo;
+
+      if (map) map.invalidateSize();
     }
+
     function stopDrag() {
       saveSettings();
       document.removeEventListener("mousemove", doDrag);
       document.removeEventListener("mouseup", stopDrag);
     }
+
+    document.addEventListener("mousemove", doDrag);
+    document.addEventListener("mouseup", stopDrag);
+  });
+
+  // 下側（動画リスト）のリサイズバー（今回追加）
+  document.getElementById("video-resizer").addEventListener("mousedown", function (e) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startVideo = videoList.offsetHeight;
+    const startMap = mapContainer.offsetHeight;
+    const totalHeight = startMap + startVideo;
+
+    function doDrag(e) {
+      let newVideo = startVideo + (e.clientY - startY);
+      let newMap = totalHeight - newVideo;
+      if (newMap < 100 || newVideo < 100) return;
+
+      videoList.style.height = newVideo + "px";
+      mapContainer.style.height = newMap + "px";
+      settings.videoHeight = newVideo;
+      settings.mapHeight = newMap;
+
+      if (map) map.invalidateSize();
+    }
+
+    function stopDrag() {
+      saveSettings();
+      document.removeEventListener("mousemove", doDrag);
+      document.removeEventListener("mouseup", stopDrag);
+    }
+
     document.addEventListener("mousemove", doDrag);
     document.addEventListener("mouseup", stopDrag);
   });
 }
+
 
 function initMap() {
   map = L.map("map").setView([35.681236, 139.767125], 5);
