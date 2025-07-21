@@ -1,0 +1,46 @@
+// main.js
+
+const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSJvykSeuUGH-64GwOk3EClYVUEnuQcZoSq_RQaCChNNdh_eK5YeZT3usBmJQgucVVIBIDlLakVaWcB/pub?gid=345912978&single=true&output=csv';
+
+async function loadCamerasFromCSV() {
+  const res = await fetch(csvUrl);
+  const csv = await res.text();
+  const rows = csv.trim().split('\n').map(r => r.split(','));
+
+  const headers = rows[0];
+  return rows.slice(1).map(r => {
+    const obj = {};
+    headers.forEach((h, i) => {
+      obj[h.trim()] = r[i]?.trim() ?? '';
+    });
+    return obj;
+  });
+}
+
+function showCameras(cameras) {
+  const list = document.getElementById('camera-list');
+  const map = L.map('map').setView([35, 135], 4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  cameras.forEach(cam => {
+    const lat = parseFloat(cam["緯度"]);
+    const lon = parseFloat(cam["経度"]);
+    if (isNaN(lat) || isNaN(lon)) return;
+
+    const iframeUrl = cam["YouTubeURL"].replace("watch?v=", "embed/");
+
+    // 地図上にマーカー表示
+    const marker = L.marker([lat, lon]).addTo(map);
+    marker.bindPopup(`<b>${cam["表示名"]}</b><br><iframe width='300' height='200' src='${iframeUrl}' allowfullscreen></iframe>`);
+
+    // リスト表示
+    const item = document.createElement('div');
+    item.className = 'camera-item';
+    item.innerHTML = `<strong>${cam["表示名"]}</strong><br><iframe width='300' height='200' src='${iframeUrl}' allowfullscreen></iframe>`;
+    list.appendChild(item);
+  });
+}
+
+loadCamerasFromCSV().then(showCameras);
