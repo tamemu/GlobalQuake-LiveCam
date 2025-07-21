@@ -79,7 +79,7 @@ function applySizeSettings() {
   mapContainer.style.height = settings.mapHeight + "px";
   videoList.style.height = settings.videoHeight + "px";
 
-  // 上側（マップ）のリサイズバー
+  // 上のリサイズバー（マップ下）
   document.getElementById("resizer").addEventListener("mousedown", function (e) {
     e.preventDefault();
     const startY = e.clientY;
@@ -110,7 +110,7 @@ function applySizeSettings() {
     document.addEventListener("mouseup", stopDrag);
   });
 
-  // 下側（動画リスト）のリサイズバー（今回追加）
+  // 下のリサイズバー（動画上）
   document.getElementById("video-resizer").addEventListener("mousedown", function (e) {
     e.preventDefault();
     const startY = e.clientY;
@@ -119,7 +119,8 @@ function applySizeSettings() {
     const totalHeight = startMap + startVideo;
 
     function doDrag(e) {
-      let newVideo = startVideo + (e.clientY - startY);
+      let delta = e.clientY - startY;
+      let newVideo = startVideo + delta;
       let newMap = totalHeight - newVideo;
       if (newMap < 100 || newVideo < 100) return;
 
@@ -141,7 +142,6 @@ function applySizeSettings() {
     document.addEventListener("mouseup", stopDrag);
   });
 }
-
 
 function initMap() {
   map = L.map("map").setView([35.681236, 139.767125], 5);
