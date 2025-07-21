@@ -22,15 +22,24 @@ async function fetchJapanEarthquake() {
   const text = await res.text();
   const parser = new DOMParser();
   const xml = parser.parseFromString(text, 'application/xml');
+
   const item = xml.querySelector('item');
+  if (!item) return null;
+
   const link = item.querySelector('link')?.textContent;
   if (!link) return null;
 
   const detailRes = await fetch(link);
   const detailText = await detailRes.text();
   const detailXml = parser.parseFromString(detailText, 'application/xml');
-  const lat = parseFloat(detailXml.querySelector('jmx\:Latitude, jmx_eb\:Latitude')?.textContent);
-  const lon = parseFloat(detailXml.querySelector('jmx\:Longitude, jmx_eb\:Longitude')?.textContent);
+
+  const latTag = detailXml.querySelector('jmx\\:Latitude, jmx_eb\\:Latitude');
+  const lonTag = detailXml.querySelector('jmx\\:Longitude, jmx_eb\\:Longitude');
+  if (!latTag || !lonTag) return null;
+
+  const lat = parseFloat(latTag.textContent);
+  const lon = parseFloat(lonTag.textContent);
+
   if (isNaN(lat) || isNaN(lon)) return null;
 
   return { lat, lon };
@@ -45,7 +54,7 @@ function getDistanceKm(lat1, lon1, lat2, lon2) {
 }
 
 function showCameras(cameras, epicenter = null) {
-  const list = document.getElementById('camera-list');
+  const list = document.getElementById('camera-items');
   list.innerHTML = '';
   const map = L.map('map').setView([35, 135], 4);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -72,11 +81,15 @@ function showCameras(cameras, epicenter = null) {
     if (!epicenter || getDistanceKm(epicenter.lat, epicenter.lon, lat, lon) <= 50) {
       const item = document.createElement('div');
       item.className = 'camera-item';
-      item.innerHTML = `<strong>${name}</strong><br><iframe width="300" height="200" src="${embedUrl}" allowfullscreen></iframe>`;
+      item.innerHTML = `<strong>${name}</strong><br><iframe src="${embedUrl}" allowfullscreen></iframe>`;
       list.appendChild(item);
     }
   });
 }
 
 Promise.all([loadCamerasFromCSV(), fetchJapanEarthquake()])
-  .then(([cameras, epicenter]) => showCameras(cameras, epicenter));
+  .then(([cameras, epicenter]) => showCameras(cameras, epicenter))
+  .catch(error => {
+    console.error('エラー:', error);
+    loadCamerasFromCSV().then(cameras => showCameras(cameras));
+  });
