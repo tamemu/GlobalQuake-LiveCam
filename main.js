@@ -1,6 +1,7 @@
-// main.js - 地震速報連動＋UI同期＋サイズ連動＋保存対応
+// main.js - 地震速報連動＋UI同期＋サイズ連動＋保存対
 
 let map;
+
 let cameraMarkers = [];
 let settings = {
   historyLimit: 10,
