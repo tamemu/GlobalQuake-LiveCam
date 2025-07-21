@@ -37,7 +37,7 @@ async function loadCameras() {
   const nameIdx = header.indexOf("表示名");
   const latIdx = header.indexOf("緯度");
   const lngIdx = header.indexOf("経度");
-  const urlIdx = header.indexOf("リンク");
+  const urlIdx = header.indexOf("YouTubeURL");
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
