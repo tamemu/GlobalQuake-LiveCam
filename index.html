@@ -9,8 +9,19 @@
     body { font-family: sans-serif; margin: 0; padding: 0; }
     #map-container { height: 200px; resize: vertical; overflow: auto; }
     #map { height: 100%; }
-    #resizer { height: 6px; background: #ccc; cursor: row-resize; }
-    #video-list { padding: 10px; background: #f9f9f9; }
+    #resizer, #video-resizer {
+      height: 6px;
+      background: #ccc;
+      cursor: row-resize;
+    }
+    #video-list {
+      resize: vertical;
+      overflow: auto;
+      min-height: 200px;
+      height: 400px;
+      padding: 10px;
+      background: #f9f9f9;
+    }
     #quake-history { padding: 10px; background: #eee; list-style: none; margin: 0; }
     #quake-history li { margin-bottom: 4px; }
     #settings-button {
@@ -38,24 +49,39 @@
     <div id="resizer"></div>
   </div>
   <ul id="quake-history"></ul>
+  <div id="video-resizer"></div>
   <div id="video-list"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
+    // マップリサイズバー
     document.getElementById("resizer").addEventListener("mousedown", function(e) {
       e.preventDefault();
       const startY = e.clientY;
       const startHeight = document.getElementById("map-container").offsetHeight;
-
       function doDrag(e) {
         document.getElementById("map-container").style.height = (startHeight + e.clientY - startY) + "px";
       }
-
       function stopDrag() {
         document.removeEventListener("mousemove", doDrag);
         document.removeEventListener("mouseup", stopDrag);
       }
+      document.addEventListener("mousemove", doDrag);
+      document.addEventListener("mouseup", stopDrag);
+    });
 
+    // 動画リストリサイズバー
+    document.getElementById("video-resizer").addEventListener("mousedown", function(e) {
+      e.preventDefault();
+      const startY = e.clientY;
+      const startHeight = document.getElementById("video-list").offsetHeight;
+      function doDrag(e) {
+        document.getElementById("video-list").style.height = (startHeight + e.clientY - startY) + "px";
+      }
+      function stopDrag() {
+        document.removeEventListener("mousemove", doDrag);
+        document.removeEventListener("mouseup", stopDrag);
+      }
       document.addEventListener("mousemove", doDrag);
       document.addEventListener("mouseup", stopDrag);
     });
