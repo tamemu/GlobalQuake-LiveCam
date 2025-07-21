@@ -52,6 +52,9 @@ async function loadCameras() {
     marker.bindPopup(`<b>${name}</b><br><iframe width='300' height='200' src='${link}' allowfullscreen></iframe>`);
 
     cameraMarkers.push(marker);
+    console.log("CSVヘッダー:", header);
+    console.log("YouTubeURLのindex:", urlIdx);
+
   }
 }
 
