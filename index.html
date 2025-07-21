@@ -7,7 +7,9 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body { font-family: sans-serif; margin: 0; padding: 0; }
-    #map { height: 200px; }
+    #map-container { height: 200px; resize: vertical; overflow: auto; }
+    #map { height: 100%; }
+    #resizer { height: 6px; background: #ccc; cursor: row-resize; }
     #video-list { padding: 10px; background: #f9f9f9; }
     #quake-history { padding: 10px; background: #eee; list-style: none; margin: 0; }
     #quake-history li { margin-bottom: 4px; }
@@ -31,11 +33,33 @@
     <button id="apply-settings">適用</button>
   </div>
 
-  <div id="map"></div>
+  <div id="map-container">
+    <div id="map"></div>
+    <div id="resizer"></div>
+  </div>
   <ul id="quake-history"></ul>
   <div id="video-list"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    document.getElementById("resizer").addEventListener("mousedown", function(e) {
+      e.preventDefault();
+      const startY = e.clientY;
+      const startHeight = document.getElementById("map-container").offsetHeight;
+
+      function doDrag(e) {
+        document.getElementById("map-container").style.height = (startHeight + e.clientY - startY) + "px";
+      }
+
+      function stopDrag() {
+        document.removeEventListener("mousemove", doDrag);
+        document.removeEventListener("mouseup", stopDrag);
+      }
+
+      document.addEventListener("mousemove", doDrag);
+      document.addEventListener("mouseup", stopDrag);
+    });
+  </script>
   <script src="main.js"></script>
 </body>
 </html>
