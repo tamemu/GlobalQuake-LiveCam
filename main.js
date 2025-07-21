@@ -1,4 +1,4 @@
-// main.js - 地震速報連動＋ローカルストレージ対応＋UI同期
+// main.js - 地震速報連動＋UI同期＋サイズ連動＋保存対応
 
 let map;
 let cameraMarkers = [];
@@ -6,12 +6,15 @@ let settings = {
   historyLimit: 10,
   refreshMinutes: 5,
   iframeWidth: 300,
-  iframeHeight: 200
+  iframeHeight: 200,
+  mapHeight: 200,
+  videoHeight: 400
 };
 
 window.onload = async function () {
   await waitForSettingsUI();
   loadSettings();
+  applySizeSettings();
   initSettings();
   initMap();
   await loadCameras();
@@ -67,6 +70,39 @@ function initSettings() {
     saveSettings();
     location.reload();
   };
+}
+
+function applySizeSettings() {
+  const total = settings.mapHeight + settings.videoHeight;
+  const mapContainer = document.getElementById("map-container");
+  const videoList = document.getElementById("video-list");
+  mapContainer.style.height = settings.mapHeight + "px";
+  videoList.style.height = settings.videoHeight + "px";
+
+  document.getElementById("resizer").addEventListener("mousedown", function(e) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startMap = mapContainer.offsetHeight;
+    const startVideo = videoList.offsetHeight;
+    const totalHeight = startMap + startVideo;
+
+    function doDrag(e) {
+      let newMap = startMap + (e.clientY - startY);
+      let newVideo = totalHeight - newMap;
+      if (newMap < 100 || newVideo < 100) return;
+      mapContainer.style.height = newMap + "px";
+      videoList.style.height = newVideo + "px";
+      settings.mapHeight = newMap;
+      settings.videoHeight = newVideo;
+    }
+    function stopDrag() {
+      saveSettings();
+      document.removeEventListener("mousemove", doDrag);
+      document.removeEventListener("mouseup", stopDrag);
+    }
+    document.addEventListener("mousemove", doDrag);
+    document.addEventListener("mouseup", stopDrag);
+  });
 }
 
 function initMap() {
