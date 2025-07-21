@@ -1,4 +1,4 @@
-// main.js - 地震速報連動＋設定パネル＋動画下表示対応
+// main.js - 地震速報連動＋ローカルストレージ対応＋設定反映
 
 let map;
 let cameraMarkers = [];
@@ -10,12 +10,31 @@ let settings = {
 };
 
 window.onload = async function () {
+  loadSettings();
   initSettings();
   initMap();
   await loadCameras();
   await updateEarthquakeData();
   setInterval(updateEarthquakeData, settings.refreshMinutes * 60 * 1000);
 };
+
+function loadSettings() {
+  const saved = localStorage.getItem("quakeSettings");
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      settings = { ...settings, ...parsed };
+    } catch (e) { console.warn("設定の読み込み失敗", e); }
+  }
+  document.getElementById("history-limit").value = settings.historyLimit;
+  document.getElementById("refresh-interval").value = settings.refreshMinutes;
+  document.getElementById("iframe-width").value = settings.iframeWidth;
+  document.getElementById("iframe-height").value = settings.iframeHeight;
+}
+
+function saveSettings() {
+  localStorage.setItem("quakeSettings", JSON.stringify(settings));
+}
 
 function initSettings() {
   document.getElementById("settings-button").onclick = () => {
@@ -26,6 +45,7 @@ function initSettings() {
     settings.refreshMinutes = parseInt(document.getElementById("refresh-interval").value);
     settings.iframeWidth = parseInt(document.getElementById("iframe-width").value);
     settings.iframeHeight = parseInt(document.getElementById("iframe-height").value);
+    saveSettings();
     location.reload();
   };
 }
