@@ -1,4 +1,4 @@
-// main.js - 地震速報連動＋ローカルストレージ対応＋設定反映
+// main.js - 地震速報連動＋ローカルストレージ対応＋UI同期
 
 let map;
 let cameraMarkers = [];
@@ -10,6 +10,7 @@ let settings = {
 };
 
 window.onload = async function () {
+  await waitForSettingsUI();
   loadSettings();
   initSettings();
   initMap();
@@ -17,6 +18,24 @@ window.onload = async function () {
   await updateEarthquakeData();
   setInterval(updateEarthquakeData, settings.refreshMinutes * 60 * 1000);
 };
+
+function waitForSettingsUI() {
+  return new Promise((resolve) => {
+    const check = () => {
+      if (
+        document.getElementById("history-limit") &&
+        document.getElementById("refresh-interval") &&
+        document.getElementById("iframe-width") &&
+        document.getElementById("iframe-height")
+      ) {
+        resolve();
+      } else {
+        setTimeout(check, 100);
+      }
+    };
+    check();
+  });
+}
 
 function loadSettings() {
   const saved = localStorage.getItem("quakeSettings");
