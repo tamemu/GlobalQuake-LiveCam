@@ -1,8 +1,7 @@
-// main.js - 地震速報連動対応バージョン
+// main.js - 地震速報連動対応（デフォルトマーカー版）
 
 let map;
 let cameraMarkers = [];
-let defaultIcon, highlightedIcon;
 
 // 初期化
 window.onload = async function () {
@@ -12,21 +11,6 @@ window.onload = async function () {
     maxZoom: 18,
     attribution: "&copy; OpenStreetMap contributors"
   }).addTo(map);
-
-  // アイコン定義
-  defaultIcon = L.icon({
-    iconUrl: "marker-icon.png",
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-  });
-
-  highlightedIcon = L.icon({
-    iconUrl: "marker-icon-red.png",
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-  });
 
   await loadCameras();
   const quake = await fetchJapanEarthquakeRSS();
@@ -39,7 +23,7 @@ window.onload = async function () {
       radius: 10,
       color: "red",
       fillOpacity: 0.6
-    }).addTo(map).bindPopup(`\u5730\u9707\u767a\u751f\u5730\n${quake.name}<br>${quake.time}`);
+    }).addTo(map).bindPopup(`\u5730\u9707\u767a\u751f\u5730<br>${quake.name}<br>${quake.time}`);
   }
 };
 
@@ -64,7 +48,7 @@ async function loadCameras() {
     const name = row[nameIdx];
     const link = row[urlIdx];
 
-    const marker = L.marker([lat, lng], { icon: defaultIcon }).addTo(map);
+    const marker = L.marker([lat, lng]).addTo(map);
     marker.bindPopup(`<b>${name}</b><br><iframe width='300' height='200' src='${link}' allowfullscreen></iframe>`);
 
     cameraMarkers.push(marker);
@@ -113,12 +97,13 @@ async function fetchJapanEarthquakeRSS() {
   }
 }
 
-// 地震周辺のカメラをハイライト
+// 地震周辺のカメラをハイライト（今回はデフォルトマーカーなので視覚的変化なし）
 function highlightCamerasNear(lat, lng, radiusKm = 200) {
+  // マーカーの色変更は不要（デフォルトのまま）
   for (const marker of cameraMarkers) {
     const [camLat, camLng] = [marker.getLatLng().lat, marker.getLatLng().lng];
     const dist = getDistanceKm(lat, lng, camLat, camLng);
-    marker.setIcon(dist <= radiusKm ? highlightedIcon : defaultIcon);
+    // 必要ならログなど追加可能
   }
 }
 
