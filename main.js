@@ -1,38 +1,47 @@
-// main.js - 地震速報連動対応（デフォルトマーカー版）
+// main.js - 地震速報連動＋設定パネル＋動画下表示対応
 
 let map;
 let cameraMarkers = [];
+let settings = {
+  historyLimit: 10,
+  refreshMinutes: 5,
+  iframeWidth: 300,
+  iframeHeight: 200
+};
 
-// 初期化
 window.onload = async function () {
-  map = L.map("map").setView([35.681236, 139.767125], 5);
+  initSettings();
+  initMap();
+  await loadCameras();
+  await updateEarthquakeData();
+  setInterval(updateEarthquakeData, settings.refreshMinutes * 60 * 1000);
+};
 
+function initSettings() {
+  document.getElementById("settings-button").onclick = () => {
+    document.getElementById("settings-panel").classList.toggle("hidden");
+  };
+  document.getElementById("apply-settings").onclick = () => {
+    settings.historyLimit = parseInt(document.getElementById("history-limit").value);
+    settings.refreshMinutes = parseInt(document.getElementById("refresh-interval").value);
+    settings.iframeWidth = parseInt(document.getElementById("iframe-width").value);
+    settings.iframeHeight = parseInt(document.getElementById("iframe-height").value);
+    location.reload();
+  };
+}
+
+function initMap() {
+  map = L.map("map").setView([35.681236, 139.767125], 5);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 18,
     attribution: "&copy; OpenStreetMap contributors"
   }).addTo(map);
+}
 
-  await loadCameras();
-  const quake = await fetchJapanEarthquakeRSS();
-
-  if (quake) {
-    highlightCamerasNear(quake.lat, quake.lng);
-    map.setView([quake.lat, quake.lng], 7);
-
-    L.circleMarker([quake.lat, quake.lng], {
-      radius: 10,
-      color: "red",
-      fillOpacity: 0.6
-    }).addTo(map).bindPopup(`\u5730\u9707\u767a\u751f\u5730<br>${quake.name}<br>${quake.time}`);
-  }
-};
-
-// カメラ読み込み（CSV from Google Sheets）
 async function loadCameras() {
-  const response = await fetch("https://docs.google.com/spreadsheets/d/e/2PACX-1vSJvykSeuUGH-64GwOk3EClYVUEnuQcZoSq_RQaCChNNdh_eK5YeZT3usBmJQgucVVIBIDlLakVaWcB/pub?gid=345912978&single=true&output=csv");
-  const csv = await response.text();
+  const res = await fetch("https://docs.google.com/spreadsheets/d/e/2PACX-1vSJvykSeuUGH-64GwOk3EClYVUEnuQcZoSq_RQaCChNNdh_eK5YeZT3usBmJQgucVVIBIDlLakVaWcB/pub?gid=345912978&single=true&output=csv");
+  const csv = await res.text();
   const rows = csv.split("\n").map(row => row.split(","));
-
   const header = rows[0];
   const nameIdx = header.indexOf("表示名");
   const latIdx = header.indexOf("緯度");
@@ -42,82 +51,78 @@ async function loadCameras() {
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row[latIdx] || !row[lngIdx]) continue;
-
     const lat = parseFloat(row[latIdx]);
     const lng = parseFloat(row[lngIdx]);
     const name = row[nameIdx];
-    const link = row[urlIdx];
+    const rawUrl = row[urlIdx];
+    if (!rawUrl) continue;
 
+    const embedUrl = rawUrl.replace("watch?v=", "embed/").replace("youtu.be/", "www.youtube.com/embed/").replace(/\?.*$/, "");
     const marker = L.marker([lat, lng]).addTo(map);
-    marker.bindPopup(`<b>${name}</b><br><iframe width='300' height='200' src='${link}' allowfullscreen></iframe>`);
-
+    marker.data = { lat, lng, name, embedUrl };
     cameraMarkers.push(marker);
-    //console.log("CSVヘッダー:", header);
-    //console.log("YouTubeURLのindex:", urlIdx);
-
   }
 }
 
-// 地震速報取得（気象庁RSS）
-async function fetchJapanEarthquakeRSS() {
+async function updateEarthquakeData() {
   const url = "https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml";
-
   try {
     const res = await fetch(url);
     const text = await res.text();
     const parser = new DOMParser();
     const xml = parser.parseFromString(text, "application/xml");
+    const items = Array.from(xml.querySelectorAll("item")).slice(0, settings.historyLimit);
 
-    const item = xml.querySelector("item");
-    if (!item) return null;
+    const quakeList = document.getElementById("quake-history");
+    quakeList.innerHTML = "";
+    const parser2 = new DOMParser();
 
-    const link = item.querySelector("link").textContent;
-    const pubDate = item.querySelector("pubDate").textContent;
+    for (const item of items) {
+      const detailUrl = item.querySelector("link").textContent;
+      const detailRes = await fetch(detailUrl);
+      const detailText = await detailRes.text();
+      const detailXML = parser2.parseFromString(detailText, "application/xml");
 
-    const detailRes = await fetch(link);
-    const detailText = await detailRes.text();
-    const detailXML = parser.parseFromString(detailText, "application/xml");
+      const area = detailXML.querySelector("jmx\\:Hypocenter jmx\\:Area jmx\\:Name")?.textContent;
+      const coord = detailXML.querySelector("jmx\\:Hypocenter jmx\\:Area jmx\\:Coordinate")?.textContent;
+      const pubDate = item.querySelector("pubDate").textContent;
+      if (!area || !coord) continue;
 
-    const areaName = detailXML.querySelector("jmx\\:Hypocenter jmx\\:Area jmx\\:Name");
-    const coord = detailXML.querySelector("jmx\\:Hypocenter jmx\\:Area jmx\\:Coordinate");
+      const [lon, lat] = coord.trim().split(" ").map(parseFloat);
+      quakeList.innerHTML += `<li>${pubDate} - ${area}</li>`;
 
-    if (!areaName || !coord) return null;
+      L.circleMarker([lat, lon], {
+        radius: 6,
+        color: "red",
+        fillOpacity: 0.5
+      }).addTo(map);
 
-    const coordParts = coord.textContent.trim().split(" ");
-    const quakeLat = parseFloat(coordParts[1]);
-    const quakeLng = parseFloat(coordParts[0]);
-
-    return {
-      name: areaName.textContent,
-      lat: quakeLat,
-      lng: quakeLng,
-      time: pubDate
-    };
-
+      updateCameraList(lat, lon);
+    }
   } catch (e) {
-    console.error("地震速報取得失敗:", e);
-    return null;
+    console.error("地震履歴取得失敗", e);
   }
 }
 
-// 地震周辺のカメラをハイライト（今回はデフォルトマーカーなので視覚的変化なし）
-function highlightCamerasNear(lat, lng, radiusKm = 200) {
-  // マーカーの色変更は不要（デフォルトのまま）
-  for (const marker of cameraMarkers) {
-    const [camLat, camLng] = [marker.getLatLng().lat, marker.getLatLng().lng];
-    const dist = getDistanceKm(lat, lng, camLat, camLng);
-    // 必要ならログなど追加可能
+function updateCameraList(quakeLat, quakeLng) {
+  const container = document.getElementById("video-list");
+  container.innerHTML = "";
+  cameraMarkers.sort((a, b) => {
+    const d1 = getDistanceKm(quakeLat, quakeLng, a.data.lat, a.data.lng);
+    const d2 = getDistanceKm(quakeLat, quakeLng, b.data.lat, b.data.lng);
+    return d1 - d2;
+  });
+  for (let i = 0; i < Math.min(10, cameraMarkers.length); i++) {
+    const cam = cameraMarkers[i].data;
+    container.innerHTML += `<div><b>${cam.name}</b><br><iframe width='${settings.iframeWidth}' height='${settings.iframeHeight}' src='${cam.embedUrl}' allowfullscreen></iframe></div><hr>`;
   }
 }
 
-// 距離計算（Haversine）
-function getDistanceKm(lat1, lng1, lat2, lng2) {
+function getDistanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
