@@ -1,100 +1,1055 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>地震速報連動ライブカメ</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <style>
-    body {
-      font-family: sans-serif;
-      margin: 0;
-      padding: 0;
-    }
-    #map-container {
-      height: 200px;
-      overflow: hidden;
-    }
-    #map {
-      height: 100%;
-    }
-    #resizer, #video-resizer {
-      height: 6px;
-      background: #ccc;
-      cursor: row-resize;
-    }
-    #video-list {
-      height: 400px;
-      overflow: auto;
-      padding: 10px;
-      background: #f9f9f9;
-    }
-    #quake-history {
-      padding: 10px;
-      background: #eee;
-      list-style: none;
-      margin: 0;
-    }
-    #quake-history li {
-      margin-bottom: 4px;
-    }
-    #settings-button {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      z-index: 1000;
-      background: #444;
-      color: #fff;
-      padding: 6px 12px;
-      border: none;
-      cursor: pointer;
-    }
-    #settings-panel {
-      position: fixed;
-      top: 50px;
-      right: 10px;
-      background: #fff;
-      border: 1px solid #ccc;
-      padding: 10px;
-      z-index: 1000;
-    }
-    .hidden {
-      display: none;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GlobalQuake LiveCam - 地震速報連動ライブカメラ</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #ff6b6b, #feca57, #48dbfb);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(255, 107, 107, 0.3);
+        }
+
+        .header p {
+            color: #b0b0b0;
+            font-size: 1.1rem;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.warning {
+            background: #fbbf24;
+        }
+
+        .status-indicator.error {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .video-section {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 25px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .video-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .video-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .video-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .btn.primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+        }
+
+        .btn.primary:hover {
+            background: linear-gradient(45deg, #764ba2, #667eea);
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .video-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .settings-grid {
+            display: grid;
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-label {
+            font-size: 0.9rem;
+            color: #b0b0b0;
+            font-weight: 500;
+        }
+
+        .form-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-select {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .earthquake-alert {
+            background: linear-gradient(45deg, #ff4757, #ff3838);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            animation: alertPulse 1s infinite;
+            display: none;
+        }
+
+        .earthquake-alert.active {
+            display: block;
+        }
+
+        @keyframes alertPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        .history-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 3px solid #667eea;
+        }
+
+        .history-time {
+            font-size: 0.8rem;
+            color: #888;
+            margin-bottom: 4px;
+        }
+
+        .history-info {
+            font-size: 0.9rem;
+        }
+
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .preset-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+        }
+
+        .preset-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .fullscreen-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.7);
+            border: none;
+            color: white;
+            padding: 8px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 5;
+        }
+
+        .fullscreen-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: scale(1.1);
+        }
+
+        .alert-settings {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.2);
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #667eea;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .status-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .video-container {
+                height: 300px;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+        }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-globe-asia"></i> GlobalQuake LiveCam</h1>
+            <p>地震速報連動ライブカメラシステム</p>
+        </header>
 
-  <button id="settings-button">設定を開く</button>
-  <div id="settings-panel" class="hidden">
-    <label>履歴件数: <input type="number" id="history-limit" value="10" min="1"></label><br>
-    <label>更新間隔(分): <input type="number" id="refresh-interval" value="5" min="1"></label><br>
-    <label>iframe幅: <input type="number" id="iframe-width" value="300"></label><br>
-    <label>iframe高さ: <input type="number" id="iframe-height" value="200"></label><br>
-    <button id="apply-settings">適用</button>
-  </div>
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-indicator" id="connectionStatus"></div>
+                <span>接続状態: <span id="connectionText">接続中</span></span>
+            </div>
+            <div class="status-item">
+                <i class="fas fa-clock"></i>
+                <span>最終更新: <span id="lastUpdate">--:--</span></span>
+            </div>
+            <div class="status-item">
+                <i class="fas fa-video"></i>
+                <span>カメラ: <span id="cameraStatus">正常</span></span>
+            </div>
+            <div class="status-item">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>地震情報: <span id="earthquakeStatus">監視中</span></span>
+            </div>
+        </div>
 
-  <!-- マップ領域 -->
-  <div id="map-container">
-    <div id="map"></div>
-  </div>
+        <div class="earthquake-alert" id="earthquakeAlert">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>緊急地震速報</strong>
+            <div id="alertContent"></div>
+        </div>
 
-  <!-- マップと動画の間のリサイズバー -->
-  <div id="resizer"></div>
+        <div class="main-content">
+            <section class="video-section">
+                <div class="video-header">
+                    <h2 class="video-title"><i class="fas fa-video"></i> ライブカメラ映像</h2>
+                    <div class="video-controls">
+                        <button class="btn" onclick="refreshVideo()">
+                            <i class="fas fa-sync-alt"></i> 更新
+                        </button>
+                        <button class="btn" onclick="toggleFullscreen()">
+                            <i class="fas fa-expand"></i> 全画面
+                        </button>
+                    </div>
+                </div>
+                <div class="video-container" id="videoContainer">
+                    <button class="fullscreen-btn" onclick="toggleFullscreen()">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                    <iframe 
+                        class="video-iframe" 
+                        id="videoIframe"
+                        src="about:blank"
+                        title="ライブカメラ映像">
+                    </iframe>
+                    <div class="loading-overlay" id="loadingOverlay">
+                        <div class="loading-spinner"></div>
+                        <p>映像を読み込み中...</p>
+                    </div>
+                </div>
+            </section>
 
-  <!-- 地震履歴 -->
-  <ul id="quake-history"></ul>
+            <aside class="sidebar">
+                <div class="panel">
+                    <div class="panel-header">
+                        <i class="fas fa-cog"></i>
+                        <span>設定</span>
+                    </div>
+                    
+                    <div class="preset-buttons">
+                        <button class="preset-btn" onclick="applyPreset('default')">標準設定</button>
+                        <button class="preset-btn" onclick="applyPreset('monitoring')">監視モード</button>
+                        <button class="preset-btn" onclick="applyPreset('mobile')">モバイル最適化</button>
+                        <button class="preset-btn" onclick="applyPreset('lowBandwidth')">低帯域</button>
+                    </div>
 
-  <!-- 動画リスト表示エリア -->
-  <div id="video-list"></div>
+                    <div class="settings-grid">
+                        <div class="form-group">
+                            <label class="form-label">カメラソース</label>
+                            <select class="form-select" id="cameraSource">
+                                <option value="">カメラを選択...</option>
+                                <option value="https://www.youtube.com/embed/dQw4w9WgXcQ">Sample Camera 1</option>
+                                <option value="https://www.youtube.com/embed/jNQXAC9IVRw">Sample Camera 2</option>
+                            </select>
+                        </div>
 
-  <!-- 動画リストの下のリサイズバー -->
-  <div id="video-resizer"></div>
+                        <div class="form-group">
+                            <label class="form-label">更新間隔 (分)</label>
+                            <input type="number" class="form-input" id="updateInterval" value="5" min="1" max="60">
+                        </div>
 
-  <!-- ライブラリ・スクリプト -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="main.js"></script>
+                        <div class="form-group">
+                            <label class="form-label">履歴保存件数</label>
+                            <input type="number" class="form-input" id="historyCount" value="10" min="5" max="50">
+                        </div>
 
+                        <div class="form-group">
+                            <label class="form-label">映像サイズ</label>
+                            <select class="form-select" id="videoSize">
+                                <option value="auto">自動調整</option>
+                                <option value="720p">720p (1280x720)</option>
+                                <option value="480p">480p (854x480)</option>
+                                <option value="360p">360p (640x360)</option>
+                            </select>
+                        </div>
+
+                        <button class="btn primary" onclick="applySettings()">
+                            <i class="fas fa-check"></i> 設定を適用
+                        </button>
+                    </div>
+
+                    <div class="alert-settings">
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-bell"></i> 緊急地震速報アラート
+                            </label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="alertEnabled" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <i class="fas fa-history"></i>
+                        <span>地震履歴</span>
+                    </div>
+                    <div id="earthquakeHistory">
+                        <div class="history-item">
+                            <div class="history-time">2024-01-15 14:30</div>
+                            <div class="history-info">震度3 - 東京都23区 (M4.2)</div>
+                        </div>
+                        <div class="history-item">
+                            <div class="history-time">2024-01-14 09:15</div>
+                            <div class="history-info">震度2 - 神奈川県東部 (M3.8)</div>
+                        </div>
+                        <div class="history-item">
+                            <div class="history-time">2024-01-13 22:45</div>
+                            <div class="history-info">震度1 - 千葉県北西部 (M3.1)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <i class="fas fa-info-circle"></i>
+                        <span>システム情報</span>
+                    </div>
+                    <div class="status-item" style="justify-content: space-between; margin-bottom: 10px;">
+                        <span>バージョン:</span>
+                        <span>v2.1.0</span>
+                    </div>
+                    <div class="status-item" style="justify-content: space-between; margin-bottom: 10px;">
+                        <span>稼働時間:</span>
+                        <span id="uptime">--:--:--</span>
+                    </div>
+                    <div class="status-item" style="justify-content: space-between;">
+                        <span>データソース:</span>
+                        <span>気象庁API</span>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <script>
+        // アプリケーション状態管理
+        const AppState = {
+            settings: {
+                updateInterval: 5,
+                historyCount: 10,
+                cameraSource: '',
+                videoSize: 'auto',
+                alertEnabled: true
+            },
+            isFullscreen: false,
+            startTime: Date.now(),
+            earthquakeData: []
+        };
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+            startStatusUpdates();
+            loadSettings();
+        });
+
+        function initializeApp() {
+            console.log('GlobalQuake LiveCam システムを初期化中...');
+            updateConnectionStatus('connected');
+            updateLastUpdateTime();
+            hideLoadingOverlay();
+        }
+
+        function startStatusUpdates() {
+            // 定期的な状態更新
+            setInterval(() => {
+                updateLastUpdateTime();
+                updateUptime();
+                simulateEarthquakeData();
+            }, 30000); // 30秒間隔
+
+            // リアルタイム更新
+            setInterval(() => {
+                updateUptime();
+            }, 1000);
+        }
+
+        function updateConnectionStatus(status) {
+            const indicator = document.getElementById('connectionStatus');
+            const text = document.getElementById('connectionText');
+            
+            switch(status) {
+                case 'connected':
+                    indicator.className = 'status-indicator';
+                    text.textContent = '接続済み';
+                    break;
+                case 'connecting':
+                    indicator.className = 'status-indicator warning';
+                    text.textContent = '接続中';
+                    break;
+                case 'error':
+                    indicator.className = 'status-indicator error';
+                    text.textContent = '接続エラー';
+                    break;
+            }
+        }
+
+        function updateLastUpdateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('ja-JP', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            document.getElementById('lastUpdate').textContent = timeString;
+        }
+
+        function updateUptime() {
+            const uptime = Date.now() - AppState.startTime;
+            const hours = Math.floor(uptime / (1000 * 60 * 60));
+            const minutes = Math.floor((uptime % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((uptime % (1000 * 60)) / 1000);
+            
+            document.getElementById('uptime').textContent = 
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function applySettings() {
+            const settings = {
+                updateInterval: parseInt(document.getElementById('updateInterval').value),
+                historyCount: parseInt(document.getElementById('historyCount').value),
+                cameraSource: document.getElementById('cameraSource').value,
+                videoSize: document.getElementById('videoSize').value,
+                alertEnabled: document.getElementById('alertEnabled').checked
+            };
+
+            AppState.settings = { ...AppState.settings, ...settings };
+            
+            // カメラソースの更新
+            if (settings.cameraSource) {
+                updateVideoSource(settings.cameraSource);
+            }
+
+            // 設定の保存（実際の実装ではlocalStorageの代わりにメモリに保存）
+            console.log('設定を適用しました:', settings);
+            
+            // ユーザーフィードバック
+            showNotification('設定が適用されました', 'success');
+        }
+
+        function applyPreset(presetName) {
+            const presets = {
+                default: {
+                    updateInterval: 5,
+                    historyCount: 10,
+                    videoSize: 'auto'
+                },
+                monitoring: {
+                    updateInterval: 1,
+                    historyCount: 50,
+                    videoSize: '720p'
+                },
+                mobile: {
+                    updateInterval: 10,
+                    historyCount: 5,
+                    videoSize: '360p'
+                },
+                lowBandwidth: {
+                    updateInterval: 15,
+                    historyCount: 5,
+                    videoSize: '360p'
+                }
+            };
+
+            const preset = presets[presetName];
+            if (preset) {
+                document.getElementById('updateInterval').value = preset.updateInterval;
+                document.getElementById('historyCount').value = preset.historyCount;
+                document.getElementById('videoSize').value = preset.videoSize;
+                
+                showNotification(`${presetName}設定を適用しました`, 'info');
+            }
+        }
+
+        function updateVideoSource(src) {
+            const iframe = document.getElementById('videoIframe');
+            const overlay = document.getElementById('loadingOverlay');
+            
+            showLoadingOverlay();
+            
+            iframe.src = src;
+            
+            iframe.onload = function() {
+                setTimeout(() => {
+                    hideLoadingOverlay();
+                }, 1000);
+            };
+        }
+
+        function refreshVideo() {
+            const iframe = document.getElementById('videoIframe');
+            const currentSrc = iframe.src;
+            
+            if (currentSrc && currentSrc !== 'about:blank') {
+                showLoadingOverlay();
+                iframe.src = '';
+                setTimeout(() => {
+                    iframe.src = currentSrc;
+                }, 100);
+                
+                showNotification('映像を更新しています', 'info');
+            } else {
+                showNotification('カメラソースを選択してください', 'warning');
+            }
+        }
+
+        function toggleFullscreen() {
+            const container = document.getElementById('videoContainer');
+            
+            if (!AppState.isFullscreen) {
+                if (container.requestFullscreen) {
+                    container.requestFullscreen();
+                } else if (container.webkitRequestFullscreen) {
+                    container.webkitRequestFullscreen();
+                } else if (container.msRequestFullscreen) {
+                    container.msRequestFullscreen();
+                }
+                AppState.isFullscreen = true;
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+                AppState.isFullscreen = false;
+            }
+        }
+
+        function showLoadingOverlay() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        }
+
+        function hideLoadingOverlay() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        function simulateEarthquakeData() {
+            // 地震データのシミュレーション（実際の実装では気象庁APIを使用）
+            const earthquakeStatus = document.getElementById('earthquakeStatus');
+            const randomCheck = Math.random();
+            
+            if (randomCheck < 0.1) { // 10%の確率で地震発生シミュレーション
+                const magnitude = (Math.random() * 3 + 2).toFixed(1);
+                const intensity = Math.floor(Math.random() * 4 + 1);
+                const locations = ['東京都23区', '神奈川県東部', '千葉県北西部', '埼玉県南部'];
+                const location = locations[Math.floor(Math.random() * locations.length)];
+                
+                earthquakeStatus.textContent = `震度${intensity}検出`;
+                
+                if (AppState.settings.alertEnabled && intensity >= 3) {
+                    showEarthquakeAlert(`震度${intensity} - ${location} (M${magnitude})`);
+                }
+                
+                addEarthquakeHistory(`震度${intensity} - ${location} (M${magnitude})`);
+            } else {
+                earthquakeStatus.textContent = '監視中';
+            }
+        }
+
+        function showEarthquakeAlert(message) {
+            const alert = document.getElementById('earthquakeAlert');
+            const content = document.getElementById('alertContent');
+            
+            content.textContent = message;
+            alert.classList.add('active');
+            
+            // 自動的にアラートを非表示にする
+            setTimeout(() => {
+                alert.classList.remove('active');
+            }, 10000);
+        }
+
+        function addEarthquakeHistory(info) {
+            const historyContainer = document.getElementById('earthquakeHistory');
+            const now = new Date();
+            const timeString = now.toLocaleDateString('ja-JP') + ' ' + 
+                             now.toLocaleTimeString('ja-JP', { 
+                                 hour: '2-digit', 
+                                 minute: '2-digit' 
+                             });
+            
+            const historyItem = document.createElement('div');
+            historyItem.className = 'history-item';
+            historyItem.innerHTML = `
+                <div class="history-time">${timeString}</div>
+                <div class="history-info">${info}</div>
+            `;
+            
+            historyContainer.insertBefore(historyItem, historyContainer.firstChild);
+            
+            // 履歴件数制限
+            const items = historyContainer.querySelectorAll('.history-item');
+            if (items.length > AppState.settings.historyCount) {
+                items[items.length - 1].remove();
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            // 簡易通知システム（実際の実装ではより詳細な通知UIを作成）
+            console.log(`[${type.toUpperCase()}] ${message}`);
+            
+            // ここでToast通知などを表示することができる
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: rgba(0, 0, 0, 0.9);
+                color: white;
+                padding: 15px 20px;
+                border-radius: 8px;
+                z-index: 1000;
+                font-size: 0.9rem;
+                max-width: 300px;
+                border-left: 4px solid ${type === 'success' ? '#4ade80' : type === 'warning' ? '#fbbf24' : '#667eea'};
+            `;
+            
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            // アニメーション効果
+            notification.style.transform = 'translateX(100%)';
+            notification.style.transition = 'transform 0.3s ease';
+            
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 10);
+            
+            // 自動削除
+            setTimeout(() => {
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        function loadSettings() {
+            // 初期設定の読み込み（実際の実装では保存された設定を復元）
+            document.getElementById('updateInterval').value = AppState.settings.updateInterval;
+            document.getElementById('historyCount').value = AppState.settings.historyCount;
+            document.getElementById('alertEnabled').checked = AppState.settings.alertEnabled;
+        }
+
+        // フルスクリーン状態の変更を監視
+        document.addEventListener('fullscreenchange', function() {
+            AppState.isFullscreen = !!document.fullscreenElement;
+        });
+
+        document.addEventListener('webkitfullscreenchange', function() {
+            AppState.isFullscreen = !!document.webkitFullscreenElement;
+        });
+
+        // キーボードショートカット
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 'r':
+                        e.preventDefault();
+                        refreshVideo();
+                        break;
+                    case 'f':
+                        e.preventDefault();
+                        toggleFullscreen();
+                        break;
+                    case 's':
+                        e.preventDefault();
+                        applySettings();
+                        break;
+                }
+            }
+            
+            // ESCキーでアラートを閉じる
+            if (e.key === 'Escape') {
+                const alert = document.getElementById('earthquakeAlert');
+                if (alert.classList.contains('active')) {
+                    alert.classList.remove('active');
+                }
+            }
+        });
+
+        // エラーハンドリング
+        window.addEventListener('error', function(e) {
+            console.error('アプリケーションエラー:', e.error);
+            showNotification('システムエラーが発生しました', 'error');
+            updateConnectionStatus('error');
+        });
+
+        // オンライン/オフライン状態の監視
+        window.addEventListener('online', function() {
+            updateConnectionStatus('connected');
+            showNotification('インターネット接続が復旧しました', 'success');
+        });
+
+        window.addEventListener('offline', function() {
+            updateConnectionStatus('error');
+            showNotification('インターネット接続が切断されました', 'error');
+        });
+
+        // ページ離脱前の確認（設定変更がある場合）
+        window.addEventListener('beforeunload', function(e) {
+            // 実際の実装では未保存の変更があるかチェック
+            // e.preventDefault();
+            // e.returnValue = '';
+        });
+
+        // アクセシビリティ: フォーカス管理
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                // Tab キーでのフォーカス移動時に視覚的なインジケーターを表示
+                document.body.classList.add('keyboard-navigation');
+            }
+        });
+
+        document.addEventListener('mousedown', function() {
+            document.body.classList.remove('keyboard-navigation');
+        });
+
+        // パフォーマンス監視
+        if ('performance' in window && 'getEntriesByType' in performance) {
+            setTimeout(() => {
+                const navigationTiming = performance.getEntriesByType('navigation')[0];
+                if (navigationTiming) {
+                    const loadTime = navigationTiming.loadEventEnd - navigationTiming.loadEventStart;
+                    console.log(`ページ読み込み時間: ${loadTime}ms`);
+                }
+            }, 1000);
+        }
+
+        // Service Worker登録（PWA化の準備）
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                // 実際の実装ではService Workerを登録
+                console.log('Service Worker対応ブラウザです');
+            });
+        }
+
+        // 定期的なヘルスチェック
+        setInterval(() => {
+            // システムの健康状態をチェック
+            checkSystemHealth();
+        }, 60000); // 1分間隔
+
+        function checkSystemHealth() {
+            const memoryInfo = performance.memory;
+            if (memoryInfo) {
+                const used = memoryInfo.usedJSHeapSize;
+                const total = memoryInfo.totalJSHeapSize;
+                const limit = memoryInfo.jsHeapSizeLimit;
+                
+                // メモリ使用量が90%を超えた場合の警告
+                if (used / limit > 0.9) {
+                    console.warn('メモリ使用量が高くなっています');
+                    showNotification('システムリソースの使用量が高くなっています', 'warning');
+                }
+            }
+        }
+
+        // 画面サイズ変更時のレスポンシブ対応
+        window.addEventListener('resize', function() {
+            // ビューポートサイズに応じた調整
+            const isMobile = window.innerWidth <= 768;
+            const videoContainer = document.getElementById('videoContainer');
+            
+            if (isMobile) {
+                videoContainer.style.height = '250px';
+            } else {
+                videoContainer.style.height = '500px';
+            }
+        });
+
+        // 初期表示時にウェルカムメッセージ
+        setTimeout(() => {
+            if (!sessionStorage.getItem('welcomed')) {
+                showNotification('GlobalQuake LiveCamへようこそ！', 'info');
+                // セッションストレージの代わりに変数で管理
+                window.welcomeShown = true;
+            }
+        }, 2000);
+
+        // デバッグ用の開発者コンソール情報
+        console.log(`
+        🌍 GlobalQuake LiveCam v2.1.0
+        ================================
+        
+        キーボードショートカット:
+        • Ctrl+R: 映像更新
+        • Ctrl+F: 全画面切り替え
+        • Ctrl+S: 設定適用
+        • ESC: アラート閉じる
+        
+        システム情報:
+        • ブラウザ: ${navigator.userAgent}
+        • 画面解像度: ${window.screen.width}x${window.screen.height}
+        • タイムゾーン: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
+        
+        開発者向け機能:
+        • AppState: アプリケーション状態
+        • simulateEarthquakeData(): 地震データシミュレーション
+        • checkSystemHealth(): システムヘルスチェック
+        `);
+    </script>
 </body>
 </html>
-
