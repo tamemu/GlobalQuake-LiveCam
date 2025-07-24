@@ -95,7 +95,18 @@
                 </div>
             </div>
             <div class="panel">
-                <div class="panel-header">地震履歴（最新順）</div>
+                <div class="panel-header">
+                    地震履歴（最新順）
+                    <span style="margin-left:auto;">
+                        <select id="historyCountSelect" class="form-select" style="width:auto;display:inline-block;">
+                            <option value="10">10件</option>
+                            <option value="20">20件</option>
+                            <option value="50">50件</option>
+                            <option value="100" selected>100件</option>
+                            <option value="200">200件</option>
+                        </select>
+                    </span>
+                </div>
                 <div id="earthquakeHistory">
                     <div class="history-item"><div class="history-info">地震データ読み込み中...</div></div>
                 </div>
@@ -110,7 +121,7 @@ const SPREADSHEET_CSV_URL =
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vSJvykSeuUGH-64GwOk3EClYVUEnuQcZoSq_RQaCChNNdh_eK5YeZT3usBmJQgucVVIBIDlLakVaWcB/pub?gid=345912978&single=true&output=csv';
 
 const P2P_API_WS = 'wss://api.p2pquake.net/v2/ws';
-const P2P_API_URL = 'https://api.p2pquake.net/v2/history?limit=20';
+const P2P_API_URL = 'https://api.p2pquake.net/v2/history?limit=200';
 
 const CAMERA_SELECT = document.getElementById('cameraSource');
 const CATEGORY_SELECT = document.getElementById('categoryFilter');
@@ -118,6 +129,7 @@ const REGION_SELECT = document.getElementById('regionFilter');
 const VIDEO_IFRAME = document.getElementById('videoIframe');
 const VIDEO_TITLE = document.getElementById('videoTitle');
 const HISTORY_CONTAINER = document.getElementById('earthquakeHistory');
+const HISTORY_COUNT_SELECT = document.getElementById('historyCountSelect');
 const LOADING_OVERLAY = document.getElementById('loadingOverlay');
 const STATUS_CONN = document.getElementById('connectionText');
 const STATUS_CAM = document.getElementById('cameraStatus');
@@ -130,7 +142,7 @@ let cameraList = [];
 let cameraListFiltered = [];
 let cameraMarkers = [];
 let cameraFirstLoad = true;
-let appSettings = { historyCount: 10 };
+let appSettings = { historyCount: 100 };
 let lastEarthquakeData = [];
 let map;
 let quakeWs;
@@ -273,6 +285,10 @@ function updateMapMarkers() {
         if (!cam.lat || !cam.lng) return;
         const marker = L.marker([cam.lat, cam.lng]).addTo(map);
         marker.bindPopup(`<b>${cam.name}</b><br>${cam.region}/${cam.category}<br><button onclick="window.selectCameraFromMap(${idx})">このカメラを再生</button>`);
+        marker.on('click', function() {
+            updateVideoSource(cam.url, cam.name);
+            CAMERA_SELECT.value = cam.url;
+        });
         cameraMarkers.push(marker);
     });
 }
@@ -285,7 +301,8 @@ window.selectCameraFromMap = function(idx) {
 
 function renderEarthquakeHistory(list) {
     HISTORY_CONTAINER.innerHTML = '';
-    (list || []).slice(0, appSettings.historyCount || 10).forEach(item => {
+    const count = appSettings.historyCount || 100;
+    (list || []).slice(0, count).forEach(item => {
         const di = document.createElement('div');
         di.className = 'history-item';
         di.innerHTML = `<div class="history-time">${item.time}</div><div class="history-info">${item.info}</div>`;
@@ -305,7 +322,6 @@ function playQuakeVoice(text) {
     } catch{}
 }
 
-// --- 地震速報: API + WebSocket併用 ---
 let quakeReconnectCount = 0;
 function startEarthquakeWs() {
     if (quakeWs) { try { quakeWs.close(); } catch{} }
@@ -334,6 +350,7 @@ function startEarthquakeWs() {
             const maxInt = data.earthquake.maxScale;
             const scaleStr = maxInt ? '震度'+maxInt : '';
             const info = `${scaleStr} ${loc} (M${mag})`;
+            // 重複防止
             if (!lastEarthquakeData.length || lastEarthquakeData[0].info !== info) {
                 lastEarthquakeData.unshift({time: timeStr, info});
                 renderEarthquakeHistory(lastEarthquakeData);
@@ -381,8 +398,18 @@ function updateStatusBar() {
     LAST_UPDATE.textContent = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
     STATUS_CONN.textContent = quakeWsConnected ? 'WebSocket' : 'API';
 }
+
+// 地震履歴の件数セレクタに連動
+HISTORY_COUNT_SELECT.addEventListener('change', function() {
+    appSettings.historyCount = parseInt(this.value, 10) || 100;
+    saveSettings();
+    renderEarthquakeHistory(lastEarthquakeData);
+});
+
 document.addEventListener('DOMContentLoaded', async function() {
     loadSettings();
+    // 初期件数セレクタ同期
+    HISTORY_COUNT_SELECT.value = appSettings.historyCount || 100;
     initMap();
     await fetchCameraList();
     fetchEarthquakeData();
