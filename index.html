@@ -3,27 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GlobalQuake LiveCam - 地震速報連動ライブカメラ</title>
+    <title>GlobalQuake LiveCam</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        /* 省略せずフルスタイル・前回同様、詳細な見た目 */
         body { font-family: sans-serif; background: #1a1a2e; color: #fff; margin: 0; }
         .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-        .header { text-align: center; margin-bottom: 30px; padding: 20px; }
-        .header h1 { font-size: 2.2rem; margin-bottom: 10px; }
-        .header p { color: #b0b0b0; font-size: 1.1rem; }
-        .status-bar { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 15px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { font-size: 2.1rem; }
+        .status-bar { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
         .status-item { display: flex; align-items: center; gap: 8px; font-size: 0.97rem; }
         .main-content { display: grid; grid-template-columns: 1fr 350px; gap: 20px; }
         .video-section { background: #222b; padding: 20px; border-radius: 16px; position: relative; }
         .video-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .video-title { font-size: 1.2rem; font-weight: bold; }
+        .video-title { font-size: 1.1rem; font-weight: bold; }
         .btn { background: #222; border: 1px solid #444; color: #fff; padding: 7px 14px; border-radius: 7px; cursor: pointer; margin-right: 6px; }
         .btn:hover { background: #444; }
-        .video-container { width: 100%; height: 420px; background: #000; border-radius: 10px; position: relative; }
+        .video-container { width: 100%; height: 320px; background: #000; border-radius: 10px; position: relative; }
         .video-iframe { width: 100%; height: 100%; border: none; }
         .loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; }
         .loading-spinner { width: 38px; height: 38px; border: 3px solid #fff3; border-top: 3px solid #4af; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg);} }
+        #map { width: 100%; height: 260px; border-radius: 10px; margin-bottom: 13px; }
         .sidebar { display: flex; flex-direction: column; gap: 16px; }
         .panel { background: #222b; padding: 14px 16px; border-radius: 13px; }
         .panel-header { font-weight: 600; font-size: 1.08rem; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
@@ -31,10 +31,13 @@
         .history-item { background: #333; padding: 10px; border-radius: 6px; margin-bottom: 7px; border-left: 4px solid #4af; }
         .history-time { font-size: 0.82rem; color: #aaa; }
         .history-info { font-size: 0.99rem; }
+        .quake-alert { background: #c80010; color: #fff; padding: 10px 15px; margin: 10px 0 15px 0; border-radius: 7px; font-weight: bold; display: none; }
+        .quake-alert.active { display: block; animation: flash 1s steps(2, start) infinite; }
+        @keyframes flash { 50% { background: #fede36; color: #c80010; } }
         @media (max-width: 900px) {
             .main-content { grid-template-columns: 1fr; }
             .sidebar { margin-top: 16px; }
-            .video-container { height: 250px; }
+            .video-container, #map { height: 190px; }
         }
     </style>
 </head>
@@ -42,7 +45,7 @@
 <div class="container">
     <header class="header">
         <h1>🌏 GlobalQuake LiveCam</h1>
-        <p>地震速報連動ライブカメラシステム</p>
+        <p>地震速報＋地図＋ライブカメラ＋音声アラート</p>
     </header>
 
     <div class="status-bar">
@@ -62,6 +65,8 @@
 
     <div class="main-content">
         <section class="video-section">
+            <div class="quake-alert" id="quakeAlert"></div>
+            <div id="map"></div>
             <div class="video-header">
                 <span class="video-title" id="videoTitle">ライブカメラ映像</span>
                 <div>
@@ -85,8 +90,8 @@
                     <option value="">カメラを読み込み中...</option>
                 </select>
                 <div style="margin-top:10px;">
-                    <label>カテゴリ: <select class="form-select" id="categoryFilter" onchange="filterCameraSources()"><option value="">全て</option></select></label>
-                    <label style="margin-left:5px;">地域: <select class="form-select" id="regionFilter" onchange="filterCameraSources()"><option value="">全て</option></select></label>
+                    <label>大分類: <select class="form-select" id="categoryFilter" onchange="filterCameraSources()"><option value="">全て</option></select></label>
+                    <label style="margin-left:5px;">小分類: <select class="form-select" id="regionFilter" onchange="filterCameraSources()"><option value="">全て</option></select></label>
                 </div>
             </div>
             <div class="panel">
@@ -99,11 +104,14 @@
     </div>
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const SPREADSHEET_CSV_URL =
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vTwHDe9XYtJGqxS_aEGJB7lDK-StQ4UKrrnxKALrPPmVL0aNrEyWwv1wilX-ohr1LQDYn5rvPb0EQll/pub?gid=1636424413&single=true&output=csv';
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vSJvykSeuUGH-64GwOk3EClYVUEnuQcZoSq_RQaCChNNdh_eK5YeZT3usBmJQgucVVIBIDlLakVaWcB/pub?gid=345912978&single=true&output=csv';
 
+const P2P_API_WS = 'wss://api.p2pquake.net/v2/ws';
 const P2P_API_URL = 'https://api.p2pquake.net/v2/history?limit=20';
+
 const CAMERA_SELECT = document.getElementById('cameraSource');
 const CATEGORY_SELECT = document.getElementById('categoryFilter');
 const REGION_SELECT = document.getElementById('regionFilter');
@@ -115,20 +123,22 @@ const STATUS_CONN = document.getElementById('connectionText');
 const STATUS_CAM = document.getElementById('cameraStatus');
 const STATUS_EQUAKE = document.getElementById('earthquakeStatus');
 const LAST_UPDATE = document.getElementById('lastUpdate');
+const QUAKE_ALERT = document.getElementById('quakeAlert');
+const MAP_DIV = document.getElementById('map');
 
 let cameraList = [];
 let cameraListFiltered = [];
+let cameraMarkers = [];
 let cameraFirstLoad = true;
 let appSettings = { historyCount: 10 };
 let lastEarthquakeData = [];
+let map;
+let quakeWs;
+let quakeWsConnected = false;
+let reconnectWsTimer;
 
-function showNotification(msg, type = 'info') {
-    // 超簡易通知
-    console.log(`[${type}] ${msg}`);
-}
-function showLoading(show) {
-    LOADING_OVERLAY.style.display = show ? "flex" : "none";
-}
+function showNotification(msg, type = 'info') { console.log(`[${type}] ${msg}`); }
+function showLoading(show) { LOADING_OVERLAY.style.display = show ? "flex" : "none"; }
 
 function parseCSV(csvText) {
     const lines = csvText.trim().split('\n');
@@ -138,9 +148,11 @@ function parseCSV(csvText) {
         if(cols.length < 4) continue;
         result.push({
             name: cols[0].replace(/^"|"$/g,'').trim(),
-            category: cols[2].replace(/^"|"$/g,'').trim(),
-            region: cols[1].replace(/^"|"$/g,'').trim(),
-            url: cols[3].replace(/^"|"$/g,'').trim()
+            category: cols[1].replace(/^"|"$/g,'').trim(),
+            region: cols[2].replace(/^"|"$/g,'').trim(),
+            url: cols[3].replace(/^"|"$/g,'').trim(),
+            lat: cols[4] ? parseFloat(cols[4]) : null,
+            lng: cols[5] ? parseFloat(cols[5]) : null
         });
     }
     return result;
@@ -196,6 +208,7 @@ function filterCameraSources() {
         (!cat || c.category === cat) && (!reg || c.region === reg)
     );
     populateCameraDropdown(cameraListFiltered);
+    updateMapMarkers();
 }
 function updateVideoSource(url, name) {
     if (!url) return;
@@ -217,18 +230,12 @@ function refreshVideo() {
 }
 function toggleFullscreen() {
     const cont = document.getElementById('videoContainer');
-    if (!document.fullscreenElement) {
-        cont.requestFullscreen?.().catch(()=>{});
-    } else {
-        document.exitFullscreen?.();
-    }
+    if (!document.fullscreenElement) { cont.requestFullscreen?.().catch(()=>{}); }
+    else { document.exitFullscreen?.(); }
 }
-function saveSettings() {
-    try { localStorage.setItem('gq_settings', JSON.stringify(appSettings)); } catch{}
-}
+function saveSettings() { try { localStorage.setItem('gq_settings', JSON.stringify(appSettings)); } catch{} }
 function loadSettings() {
-    try {
-        const d = localStorage.getItem('gq_settings');
+    try { const d = localStorage.getItem('gq_settings');
         if (d) { appSettings = {...appSettings, ...JSON.parse(d)}; }
     } catch{}
 }
@@ -241,6 +248,7 @@ async function fetchCameraList() {
         cameraListFiltered = cameraList.slice();
         populateCameraDropdown(cameraListFiltered);
         updateCategoryRegionFilters(cameraList);
+        updateMapMarkers();
         showLoading(false);
         showNotification('カメラリストを更新しました','success');
     } catch (e) {
@@ -249,6 +257,32 @@ async function fetchCameraList() {
         showLoading(false);
     }
 }
+
+function initMap() {
+    map = L.map('map').setView([36, 138], 5.3);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '',
+        maxZoom: 18
+    }).addTo(map);
+}
+function updateMapMarkers() {
+    if (!map) return;
+    cameraMarkers.forEach(m => map.removeLayer(m));
+    cameraMarkers = [];
+    cameraListFiltered.forEach((cam, idx) => {
+        if (!cam.lat || !cam.lng) return;
+        const marker = L.marker([cam.lat, cam.lng]).addTo(map);
+        marker.bindPopup(`<b>${cam.name}</b><br>${cam.region}/${cam.category}<br><button onclick="window.selectCameraFromMap(${idx})">このカメラを再生</button>`);
+        cameraMarkers.push(marker);
+    });
+}
+window.selectCameraFromMap = function(idx) {
+    const cam = cameraListFiltered[idx];
+    CAMERA_SELECT.value = cam.url;
+    updateVideoSource(cam.url, cam.name);
+    map.closePopup();
+};
+
 function renderEarthquakeHistory(list) {
     HISTORY_CONTAINER.innerHTML = '';
     (list || []).slice(0, appSettings.historyCount || 10).forEach(item => {
@@ -257,6 +291,59 @@ function renderEarthquakeHistory(list) {
         di.innerHTML = `<div class="history-time">${item.time}</div><div class="history-info">${item.info}</div>`;
         HISTORY_CONTAINER.appendChild(di);
     });
+}
+
+function playQuakeVoice(text) {
+    try {
+        if ('speechSynthesis' in window) {
+            speechSynthesis.cancel();
+            const uttr = new SpeechSynthesisUtterance(text);
+            uttr.lang = 'ja-JP';
+            uttr.rate = 1;
+            speechSynthesis.speak(uttr);
+        }
+    } catch{}
+}
+
+// --- 地震速報: API + WebSocket併用 ---
+let quakeReconnectCount = 0;
+function startEarthquakeWs() {
+    if (quakeWs) { try { quakeWs.close(); } catch{} }
+    quakeWs = new WebSocket(P2P_API_WS);
+    quakeWs.onopen = () => {
+        quakeWsConnected = true; STATUS_CONN.textContent = 'WebSocket';
+        showNotification('地震速報WS接続', 'success');
+        quakeReconnectCount = 0;
+    };
+    quakeWs.onclose = () => {
+        quakeWsConnected = false; STATUS_CONN.textContent = '再接続中';
+        showNotification('WS切断...再接続', 'warn');
+        reconnectWsTimer = setTimeout(startEarthquakeWs, 6000 * Math.min(++quakeReconnectCount,10));
+    };
+    quakeWs.onerror = () => {
+        quakeWs.close();
+    };
+    quakeWs.onmessage = (ev) => {
+        let data = {};
+        try { data = JSON.parse(ev.data); } catch{}
+        if (data.code===551 && data.earthquake) {
+            const t = new Date(data.earthquake.time);
+            const timeStr = t.toLocaleDateString('ja-JP') + ' ' + t.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+            const mag = data.earthquake.hypocenter?.magnitude || '';
+            const loc = data.earthquake.hypocenter?.name || '';
+            const maxInt = data.earthquake.maxScale;
+            const scaleStr = maxInt ? '震度'+maxInt : '';
+            const info = `${scaleStr} ${loc} (M${mag})`;
+            if (!lastEarthquakeData.length || lastEarthquakeData[0].info !== info) {
+                lastEarthquakeData.unshift({time: timeStr, info});
+                renderEarthquakeHistory(lastEarthquakeData);
+                STATUS_EQUAKE.textContent = '最新 '+info;
+                let alertMsg = `【地震速報】${scaleStr || ''}${loc || ''}、マグニチュード${mag}。`;
+                showQuakeAlert(alertMsg);
+                playQuakeVoice(alertMsg);
+            }
+        }
+    }
 }
 async function fetchEarthquakeData() {
     try {
@@ -283,15 +370,23 @@ async function fetchEarthquakeData() {
     }
 }
 
+function showQuakeAlert(msg) {
+    QUAKE_ALERT.textContent = msg;
+    QUAKE_ALERT.classList.add('active');
+    setTimeout(()=>{ QUAKE_ALERT.classList.remove('active'); }, 12000);
+}
+
 function updateStatusBar() {
     const now = new Date();
     LAST_UPDATE.textContent = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
-    STATUS_CONN.textContent = 'オンライン';
+    STATUS_CONN.textContent = quakeWsConnected ? 'WebSocket' : 'API';
 }
 document.addEventListener('DOMContentLoaded', async function() {
     loadSettings();
+    initMap();
     await fetchCameraList();
     fetchEarthquakeData();
+    startEarthquakeWs();
     updateStatusBar();
     setInterval(fetchCameraList, 1000*60*30);
     setInterval(fetchEarthquakeData, 1000*60*3);
@@ -303,7 +398,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         updateVideoSource(url, cam?.name);
     });
 });
-
 </script>
 </body>
 </html>
