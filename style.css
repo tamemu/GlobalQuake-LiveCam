@@ -1,0 +1,65 @@
+body {
+  margin: 0;
+  font-family: sans-serif;
+  background: #111;
+  color: #fff;
+}
+header {
+  background: #222;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+h1 { font-size: 1.2em; margin: 0; }
+button { cursor: pointer; }
+
+#layout {
+  display: flex;
+  flex-wrap: wrap;
+}
+#quake-section, #map-section, #camera-section {
+  padding: 10px;
+  box-sizing: border-box;
+}
+#quake-section { flex: 1 1 100%; }
+#map-section { flex: 1 1 50%; min-height: 300px; }
+#camera-section { flex: 1 1 50%; }
+
+#map { height: 300px; }
+
+#camera-list {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+#camera-list iframe {
+  width: 100%;
+  aspect-ratio: 16/9;
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  top:0; left:0; right:0; bottom:0;
+  background: rgba(0,0,0,0.6);
+  justify-content: center;
+  align-items: center;
+}
+.modal-content {
+  background: #333;
+  padding: 20px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 400px;
+}
+.modal-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 768px) {
+  #map-section, #camera-section { flex: 1 1 100%; }
+}
